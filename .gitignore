@@ -1,0 +1,25 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+.DS_Store
+.idea/
+.vscode/
+
+# Model/data artifacts
+*.pth
+*.pt
+*.bin
+*.safetensors
+outputs/*
+!outputs/.gitkeep
+results/*
+!results/.gitkeep
+
+# Logs / caches
+runs/
+wandb/
+.cache/
+*.log
