@@ -31,15 +31,16 @@ class AttributionGenerator:
             def make_attn_hook(idx):
                 def hook(module, input, output):
                     # Store attention outputs
+                    pre_o_output = input[0]
                     if len(self.attention_outputs[idx]) > 0:
                         self.attention_outputs[idx].pop()
-                    self.attention_outputs[idx].append(output[0])
+                    self.attention_outputs[idx].append(pre_o_output)
                     # Store attention weights
-                    if len(self.attention_weights[idx]) > 0:
-                        self.attention_weights[idx].pop()
-                    self.attention_weights[idx].append(output[1].detach())
+                    # if len(self.attention_weights[idx]) > 0:
+                    #     self.attention_weights[idx].pop()
+                    # self.attention_weights[idx].append(output[1].detach())
                 return hook
-            self.hooks.append(layer.self_attn.register_forward_hook(make_attn_hook(layer_idx)))
+            self.hooks.append(layer.self_attn.o_proj.register_forward_hook(make_attn_hook(layer_idx)))
 
             # Register hooks for projection layers
             def make_proj_hook(idx, proj_lst):
@@ -77,7 +78,7 @@ class AttributionGenerator:
         # cosine_qk = self._sim_qk(q, k)
         cosine_qk = self._sim_fuc(q, k)
 
-        emap = grad.unsqueeze(0) * v * cosine_qk.unsqueeze(-1)
+        emap = grad.unsqueeze(1) * v * cosine_qk.unsqueeze(-1)
         emap = F.relu(emap.sum(-1))
         return emap
 
