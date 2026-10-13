@@ -71,27 +71,47 @@ class AttributionGenerator:
         return torch.softmax(dot_product, dim=-1)  # [batch, seq_len]
 
     def _grad_ellm(self, k, q, v, grad):
-        # process the GQA
-        k = k.repeat(1, 1, 4) if k.shape[-1] < q.shape[-1] else k
-        v = v.repeat(1, 1, 4) if v.shape[-1] < q.shape[-1] else v
-
-        # cosine_qk = self._sim_qk(q, k)
+        config = self.model.config
+        num_heads = config.num_attention_heads
+        num_kv_heads = config.num_key_value_heads
+        head_dim = getattr(config, "head_dim", None)
+        if head_dim is None:
+            head_dim = config.hidden_size // num_heads
+    
+        assert num_heads % num_kv_heads == 0
+        n_rep = num_heads // num_kv_heads
+    
+        def expand_kv(x):
+            # [B, S, H_kv * D] -> [B, S, H_kv, D]
+            batch_size, seq_len, _ = x.shape
+            x = x.reshape(batch_size, seq_len, num_kv_heads, head_dim)
+    
+            # [B, S, H_kv, D] -> [B, S, H_q, D]
+            x = x.repeat_interleave(n_rep, dim=2)
+    
+            # [B, S, H_q, D] -> [B, S, H_q * D]
+            return x.flatten(start_dim=2)
+    
+        k = expand_kv(k)
+        v = expand_kv(v)
+    
+        assert k.shape[-1] == q.shape[-1]
+        assert v.shape[-1] == grad.shape[-1]
+    
         cosine_qk = self._sim_fuc(q, k)
-
         emap = grad.unsqueeze(1) * v * cosine_qk.unsqueeze(-1)
-        emap = F.relu(emap.sum(-1))
-        return emap
-
-    def _padding_emap(self, original_emap_lst):
-        max_length = original_emap_lst[-1].shape[1]
-        padded_tensors = []
-        for tensor in original_emap_lst:
-            pad_size = max_length - tensor.shape[1]
-            padded_tensor = torch.nn.functional.pad(tensor, (0, pad_size), mode='constant', value=0)
-            padded_tensors.append(padded_tensor)
-        padded_tensors = torch.stack(padded_tensors, dim=1)  # [batch_size, output - input, output]
-
-        return padded_tensors
+        return F.relu(emap.sum(-1))
+    
+        def _padding_emap(self, original_emap_lst):
+            max_length = original_emap_lst[-1].shape[1]
+            padded_tensors = []
+            for tensor in original_emap_lst:
+                pad_size = max_length - tensor.shape[1]
+                padded_tensor = torch.nn.functional.pad(tensor, (0, pad_size), mode='constant', value=0)
+                padded_tensors.append(padded_tensor)
+            padded_tensors = torch.stack(padded_tensors, dim=1)  # [batch_size, output - input, output]
+    
+            return padded_tensors
 
 
     def generate(self, input_text, max_generated_length=300, temperature=0.7):
