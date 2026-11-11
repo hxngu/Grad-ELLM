@@ -2,7 +2,7 @@
 
 Official implementation for **Faithfulness Evaluation for Decoder-only LLM Attributions with Controlled Retained Information** (Findings of EMNLP 2026).
 
-**Paper:** https://arxiv.org/abs/2601.03089
+**Paper:** https://arxiv.org/abs/2601.03089 & https://aclanthology.org/2026.findings-emnlp.1259/
 
 This repository contains:
 
